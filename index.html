@@ -47,11 +47,25 @@
         }
     
         // 軟極大化函數 (Softmax) - 將 Attention Scores 轉為動態權重 (總和為 1)
+        /* 
         softmax(arr) {
             const exps = arr.map(x => Math.exp(x));
             const sumExps = exps.reduce((a, b) => a + b, 0);
             return exps.map(x => x / sumExps);
         }
+        */
+      // 安全的 軟極大化函數 (Safe Softmax) - 防止數值爆炸成 Infinity
+      softmax(arr) {
+          // 1. 找出陣列中的最大值
+          const maxVal = Math.max(...arr);
+          
+          // 2. 每個人都減去最大值再做 exp，這樣最大也就是 exp(0) = 1，絕不溢位
+          const exps = arr.map(x => Math.exp(x - maxVal));
+          const sumExps = exps.reduce((a, b) => a + b, 0);
+          
+          return exps.map(x => x / sumExps);
+      }
+
     
         /**
          * 階段一：模擬並行時間序列處理 (Parallel Time-Series Processing)
@@ -82,9 +96,17 @@
     
             // 2. 動態權重計算 (Self-Attention)
             // 拿最後一個時間點 (最新狀態) 作為 Query，去跟所有歷史時間點 (Key) 比較
+            // const latestToken = tokens[tokens.length - 1];
+            // const attentionScores = tokens.map(token => this.dotProduct(latestToken.q, token.k));
             const latestToken = tokens[tokens.length - 1];
-            const attentionScores = tokens.map(token => this.dotProduct(latestToken.q, token.k));
+            const d_model = 8; // 特徵維度
+            const scale = Math.sqrt(d_model); // 縮放因子
             
+            const attentionScores = tokens.map(token => {
+                // 將點積結果除以 scale，防止數值過大 (Scaled Dot-Product)
+                return this.dotProduct(latestToken.q, token.k) / scale;
+            });
+                        
             // 3. 將分數轉為權重比例 (動態權重)
             const dynamicWeights = this.softmax(attentionScores);
     
